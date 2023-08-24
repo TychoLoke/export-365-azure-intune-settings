@@ -89,8 +89,8 @@ $sections = @(
 # Connect to your Microsoft 365/Azure environment
 Connect-AzureAD
 Connect-MsolService
-Connect-ExchangeOnline -UserPrincipalName admin@bradonbureauvandetoekomst.nl
-Connect-PnPOnline -Url https://bureauvandetoekomst.sharepoint.com -Credentials (Get-Credential)
+Connect-ExchangeOnline -UserPrincipalName username@contoso.nl
+Connect-PnPOnline -Url https://contoso.sharepoint.com -Credentials (Get-Credential)
 Connect-MSGraph
 Connect-MgGraph
 Connect-MicrosoftTeams
