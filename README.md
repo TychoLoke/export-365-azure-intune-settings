@@ -1,41 +1,55 @@
 # Export 365 Azure Intune Settings
 
-This repository contains a PowerShell export script for collecting configuration snapshots from a Microsoft 365 tenant across Azure AD, Exchange Online, SharePoint Online, Teams, and Intune-related workloads.
+This repository contains a PowerShell utility for exporting configuration snapshots from a Microsoft 365 tenant across Entra ID, Exchange Online, SharePoint Online, Teams, and Intune-related workloads.
 
 ## Status
 
-This is a legacy utility that has been cleaned up for public use, but it still depends on a mix of older Microsoft administration modules.
-Treat it as a best-effort export tool and validate the output in a non-production tenant before relying on it operationally.
+This is now a cleaner public utility built around section-based exports and safer defaults. It still relies on a few workload-specific Microsoft modules, but it no longer installs and connects to everything unconditionally.
 
 ## What It Does
 
-- Installs and imports the modules required by the selected export sections
-- Connects to multiple Microsoft 365 services
-- Runs a set of export commands for each workload
-- Writes section-based CSV output to a chosen directory
+- Connects only to the workloads required by the sections you select
+- Exports both JSON and CSV where practical
+- Uses Microsoft Graph for Entra and Intune-related exports
+- Keeps Exchange, Teams, and SharePoint exports separate and optional
 
 ## Requirements
 
-- PowerShell 7 or Windows PowerShell 5.1
+- PowerShell 7 recommended
 - Permission to install required PowerShell modules for the current user
 - Administrator or reader access appropriate for the Microsoft 365 workloads you want to export
+- `SharePointAdminUrl` only if you want SharePoint export sections
 
 ## Usage
 
 ```powershell
-.\powershell.ps1 `
+.\Export-M365TenantSettings.ps1 `
   -OutputDirectory "C:\Temp\M365-Exports" `
+  -Sections Organization,EntraDirectorySettings,IntuneDeviceCompliance,Teams `
   -ExchangeUserPrincipalName "admin@contoso.com" `
   -SharePointAdminUrl "https://contoso-admin.sharepoint.com"
 ```
 
-The script will prompt for interactive sign-in where required.
+For compatibility, `powershell.ps1` remains as a wrapper that forwards to `Export-M365TenantSettings.ps1`.
+
+## Available Sections
+
+- `Organization`
+- `EntraDirectorySettings`
+- `ExchangeOrganization`
+- `SharePointTenantSites`
+- `Teams`
+- `IntuneDeviceCompliance`
+- `IntuneDeviceConfiguration`
+- `IntuneMobileApps`
+- `IntuneAppProtection`
+- `IntuneAppConfiguration`
 
 ## Notes
 
-- Some of the modules used here are legacy modules kept for compatibility with the original script.
-- Not every command is available in every tenant or module combination. The script continues on section failures and logs warnings for failed sections.
-- Review the generated CSV files before using them as a compliance or migration source.
+- Not every export surface returns flat data, so JSON is always produced and CSV is generated when the structure is compatible.
+- The script continues on section failures and logs warnings for failed sections instead of aborting the whole run.
+- Review the generated output before using it as a compliance, migration, or backup source.
 
 ## License
 
