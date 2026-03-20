@@ -19,7 +19,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Initialize-PowerShellAdminHelpers {
+function Initialize-PowerShellAdminHelper {
     $moduleName = "PowerShellAdminHelpers"
 
     if (-not (Get-Module -ListAvailable -Name $moduleName)) {
@@ -101,7 +101,7 @@ function Connect-TeamsIfNeeded {
     }
 }
 
-Initialize-PowerShellAdminHelpers
+Initialize-PowerShellAdminHelper
 Ensure-OutputDirectory -Path $OutputDirectory
 
 $graphSectionScopes = @{
@@ -167,12 +167,12 @@ foreach ($section in $Sections) {
     }
 
     try {
-        Write-Host "Collecting $section..."
+        Write-Output "Collecting $section..."
         $data = & $sectionHandlers[$section]
         Export-ObjectBundle -OutputDirectory $OutputDirectory -SectionName $section -Data $data
-        Write-Host "Exported $section to $OutputDirectory"
+        Write-Output "Exported $section to $OutputDirectory"
     } catch {
-        Write-Warning "Failed to export $section: $($_.Exception.Message)"
+        Write-Warning "Failed to export ${section}: $($_.Exception.Message)"
     }
 }
 
