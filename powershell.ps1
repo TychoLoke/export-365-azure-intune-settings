@@ -1,14 +1,43 @@
-# Revised InstallAndImport-Module function test
-function InstallAndImport-Module {
-    param (
-        [Parameter(Mandatory=$true)] [string] $Name,
-        [switch] $AllowClobber
-       
+param(
+    [string]$OutputDirectory = "C:\Temp\M365-Exports",
+    [string]$ExchangeUserPrincipalName,
+    [string]$SharePointAdminUrl
+)
+
+function Install-AndImportModule {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [switch]$AllowClobber
     )
-    if (-not (Get-InstalledModule -Name $Name -ErrorAction SilentlyContinue)) {
-        Install-Module -Name $Name -AllowClobber:$AllowClobber -Scope CurrentUser
+
+    if (-not (Get-Module -ListAvailable -Name $Name)) {
+        Install-Module -Name $Name -AllowClobber:$AllowClobber -Scope CurrentUser -Force
     }
-    Import-Module -Name $Name
+
+    Import-Module -Name $Name -ErrorAction Stop
+}
+
+function Export-SettingsToCsv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutputDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SectionName,
+
+        [Parameter(Mandatory = $true)]
+        $SettingsObject
+    )
+
+    if (-not (Test-Path -Path $OutputDirectory)) {
+        New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+    }
+
+    $csvFilePath = Join-Path -Path $OutputDirectory -ChildPath "$SectionName.csv"
+    $SettingsObject | Export-Csv -Path $csvFilePath -NoTypeInformation -Encoding UTF8
+    Write-Host "Exported $SectionName to $csvFilePath"
 }
 
 $requiredModules = @(
@@ -21,87 +50,82 @@ $requiredModules = @(
     "Microsoft.Graph"
 )
 
-# Install and import required modules
 foreach ($module in $requiredModules) {
     Write-Host "Installing and importing module: $module"
-    InstallAndImport-Module -Name $module -AllowClobber 
-}
-
-# Check if the required cmdlets are available
-$requiredCmdlets = @(
-    "Get-AzureADMSDirectorySetting",
-    "Get-MsolCompanyInformation",
-    "Get-OrganizationConfig",
-    "Get-PnPWeb",
-    "Get-Team"
-)
-
-foreach ($cmdlet in $requiredCmdlets) {
-    if (-not (Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
-        Write-Error "Cmdlet $cmdlet not found. Please check the module installation and imports."
-        return
-    }
+    Install-AndImportModule -Name $module -AllowClobber
 }
 
 $sections = @(
     @{
-        Name = "AzureADSettings";
+        Name = "AzureADSettings"
         ScriptBlock = { Get-AzureADDirectorySetting }
     },
     @{
-        Name = "MSOLSettings";
+        Name = "MSOLSettings"
         ScriptBlock = { Get-MsolCompanyInformation }
     },
     @{
-        Name = "ExchangeSettings";
+        Name = "ExchangeSettings"
         ScriptBlock = { Get-OrganizationConfig }
     },
     @{
-        Name = "SharePointSettings";
+        Name = "SharePointSettings"
         ScriptBlock = { Get-PnPWeb }
     },
     @{
-        Name = "TeamsSettings";
+        Name = "TeamsSettings"
         ScriptBlock = { Get-Team }
     },
     @{
-        Name = "DeviceComplianceSettings";
+        Name = "DeviceComplianceSettings"
         ScriptBlock = { Get-IntuneDeviceCompliancePolicy }
     },
     @{
-        Name = "DeviceConfigurationSettings";
+        Name = "DeviceConfigurationSettings"
         ScriptBlock = { Get-IntuneDeviceConfigurationPolicy }
     },
     @{
-        Name = "MobileAppSettings";
+        Name = "MobileAppSettings"
         ScriptBlock = { Get-IntuneMobileApp }
     },
     @{
-        Name = "AppProtectionSettings";
+        Name = "AppProtectionSettings"
         ScriptBlock = { Get-IntuneAppProtectionPolicy }
     },
     @{
-        Name = "AppConfigurationSettings";
+        Name = "AppConfigurationSettings"
         ScriptBlock = { Get-MgIntuneAppConfigurationPolicy }
     }
 )
 
-# Connect to your Microsoft 365/Azure environment
 Connect-AzureAD
 Connect-MsolService
-Connect-ExchangeOnline -UserPrincipalName username@contoso.nl
-Connect-PnPOnline -Url https://contoso.sharepoint.com -Credentials (Get-Credential)
+
+if ($ExchangeUserPrincipalName) {
+    Connect-ExchangeOnline -UserPrincipalName $ExchangeUserPrincipalName
+} else {
+    Connect-ExchangeOnline
+}
+
+if ($SharePointAdminUrl) {
+    Connect-PnPOnline -Url $SharePointAdminUrl -Credentials (Get-Credential)
+} else {
+    Write-Warning "Skipping SharePoint export because -SharePointAdminUrl was not provided."
+}
+
 Connect-MSGraph
 Connect-MgGraph
 Connect-MicrosoftTeams
 
 foreach ($section in $sections) {
     try {
-        $settingsObject = Invoke-Command -ScriptBlock $section.ScriptBlock
-        Export-SettingsToCSV -CsvFilePath $csvFilePath -SettingsObject $settingsObject -SectionName $section.Name
+        if ($section.Name -eq "SharePointSettings" -and -not $SharePointAdminUrl) {
+            continue
+        }
+
+        $settingsObject = & $section.ScriptBlock
+        Export-SettingsToCsv -OutputDirectory $OutputDirectory -SectionName $section.Name -SettingsObject $settingsObject
     } catch {
-        Write-Warning "Failed to retrieve $($section.Name) due to an error: $($_.Exception.Message)"
+        Write-Warning "Failed to retrieve $($section.Name): $($_.Exception.Message)"
     }
 }
-``
-
