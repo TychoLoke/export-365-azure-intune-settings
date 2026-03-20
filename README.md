@@ -19,8 +19,11 @@ This is now a cleaner public utility built around section-based exports and safe
 - Permission to install required PowerShell modules for the current user
 - Administrator or reader access appropriate for the Microsoft 365 workloads you want to export
 - `SharePointAdminUrl` only if you want SharePoint export sections
+- Internet access to bootstrap `PowerShellAdminHelpers` from GitHub the first time you run the script
 
 ## Usage
+
+The script will automatically install `PowerShellAdminHelpers` from `TychoLoke/powershell-admin-helpers` if the shared module is not already installed.
 
 ```powershell
 .\Export-M365TenantSettings.ps1 `

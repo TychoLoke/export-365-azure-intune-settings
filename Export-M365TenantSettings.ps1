@@ -19,52 +19,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Ensure-Module {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ModuleName
-    )
+function Initialize-PowerShellAdminHelpers {
+    $moduleName = "PowerShellAdminHelpers"
 
-    if (-not (Get-Module -ListAvailable -Name $ModuleName)) {
-        Install-Module -Name $ModuleName -Scope CurrentUser -Force
+    if (-not (Get-Module -ListAvailable -Name $moduleName)) {
+        $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "Install-PowerShellAdminHelpers.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/TychoLoke/powershell-admin-helpers/main/Install-PowerShellAdminHelpers.ps1" -OutFile $installerPath
+        & $installerPath
     }
 
-    Import-Module -Name $ModuleName -ErrorAction Stop
-}
-
-function Ensure-OutputDirectory {
-    param([string]$Path)
-
-    if (-not (Test-Path -Path $Path)) {
-        New-Item -Path $Path -ItemType Directory -Force | Out-Null
-    }
-}
-
-function Export-SectionData {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$OutputDirectory,
-        [Parameter(Mandatory = $true)]
-        [string]$SectionName,
-        [Parameter(Mandatory = $true)]
-        $Data
-    )
-
-    Ensure-OutputDirectory -Path $OutputDirectory
-
-    $jsonPath = Join-Path -Path $OutputDirectory -ChildPath "$SectionName.json"
-    $Data | ConvertTo-Json -Depth 10 | Set-Content -Path $jsonPath -Encoding UTF8
-    Write-Host "Exported $SectionName JSON to $jsonPath"
-
-    if ($Data -is [System.Collections.IEnumerable] -and -not ($Data -is [string])) {
-        try {
-            $csvPath = Join-Path -Path $OutputDirectory -ChildPath "$SectionName.csv"
-            $Data | Export-Csv -Path $csvPath -NoTypeInformation -Encoding UTF8
-            Write-Host "Exported $SectionName CSV to $csvPath"
-        } catch {
-            Write-Warning "Skipped CSV export for $SectionName because the data structure is not flat enough."
-        }
-    }
+    Import-Module -Name $moduleName -Force -ErrorAction Stop
 }
 
 function Get-GraphCollection {
@@ -94,10 +58,7 @@ function Connect-GraphIfNeeded {
         return
     }
 
-    if (-not (Get-MgContext)) {
-        Ensure-Module -ModuleName "Microsoft.Graph"
-        Connect-MgGraph -Scopes $Scopes -NoWelcome
-    }
+    Connect-GraphWithScopes -Scopes $Scopes
 }
 
 function Connect-ExchangeIfNeeded {
@@ -139,6 +100,9 @@ function Connect-TeamsIfNeeded {
         Connect-MicrosoftTeams
     }
 }
+
+Initialize-PowerShellAdminHelpers
+Ensure-OutputDirectory -Path $OutputDirectory
 
 $graphSectionScopes = @{
     Organization = @("Organization.Read.All")
@@ -205,7 +169,8 @@ foreach ($section in $Sections) {
     try {
         Write-Host "Collecting $section..."
         $data = & $sectionHandlers[$section]
-        Export-SectionData -OutputDirectory $OutputDirectory -SectionName $section -Data $data
+        Export-ObjectBundle -OutputDirectory $OutputDirectory -SectionName $section -Data $data
+        Write-Host "Exported $section to $OutputDirectory"
     } catch {
         Write-Warning "Failed to export $section: $($_.Exception.Message)"
     }
